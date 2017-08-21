@@ -1,0 +1,9 @@
+{
+  "name": "eslint-plugin-brighthr",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "devDependencies": {
+    "eslint": "^4.4.1"
+  }
+}
