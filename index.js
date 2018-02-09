@@ -1,10 +1,5 @@
 module.exports.rules = {
     "no-moment": context => ({
-        MemberExpression: function (node) {
-            if (node.object.name === "moment") {
-                context.report(node, "Don't use \"moment\", use brightdates");
-            }
-        },
         CallExpression: function (node) {
             if (node.callee.name === "moment") {
                 context.report(node, "Don't use \"moment\", use brightdates");
