@@ -1,0 +1,20 @@
+{
+  "extends": [
+    "airbnb",
+    "prettier"
+  ],
+  "plugins": [
+    "eslint-plugin-prettier"
+  ],
+  "rules": {
+    "no-tabs": 0,
+    "prettier/prettier": [
+      "error",
+      {
+        "useTabs": true,
+        "tabWidth": 4,
+        "singleQuote": true
+      }
+    ]
+  }
+}
