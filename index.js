@@ -55,6 +55,12 @@ module.exports.rules = {
 					identifiers[name].displayNameSet = true;
 				}
 			}
+			if (node.parent && node.parent.type === 'ImportSpecifier') {
+				identifiers[node.name] = {
+					node
+				};
+			}
+
 			if (node.parent && node.parent.type === 'ReturnStatement') {
 				componentUsed(node.name);
 			}
