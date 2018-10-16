@@ -1,3 +1,7 @@
+/**
+ * Test Workbench
+ * https://astexplorer.net/#/gist/1d1efc9443a16f3d13540cf57d35db24/675cbaf4d914ac0022b1a6b353a0d70c6c659e69
+ */
 let identifiers = {};
 
 const componentUsed = name => {
@@ -9,6 +13,29 @@ const componentUsed = name => {
 		identifiers[name].used = true;
 	}
 };
+
+function flatten(arr) {
+	return Array.prototype.concat(...arr);
+}
+
+const traverseHOC = (node) => {
+	let args = [];
+	let callees = [];
+
+	if (node.arguments) {
+		args = flatten(node.arguments.map(arg => traverseHOC(arg)));
+	}
+
+	if (node.callee) {
+		callees = flatten(traverseHOC(node.callee))
+	}
+
+	if (node.name) {
+		return args.concat(callees, [node.name])
+	}
+
+	return args.concat(callees)
+}
 
 module.exports.rules = {
 	'no-moment': context => ({
@@ -68,8 +95,20 @@ module.exports.rules = {
 		JSXOpeningElement(node) {
 			componentUsed(node.name.name);
 		},
+		ExportNamedDeclaration(node) {
+			node.specifiers.forEach(function (specifier) {
+				componentUsed(specifier.local.name);
+			});
+		},
 		ExportDefaultDeclaration(node) {
-			componentUsed(node.declaration.name);
+			if (node.declaration.name) {
+				componentUsed(node.declaration.name);
+			} else if (node.declaration.type === 'CallExpression') {
+				// HOC style callback e:g: inject('store')(observer(Component))
+				traverseHOC(node.declaration).forEach(function (name) {
+					componentUsed(name);
+				});
+			}
 		},
 		'Program:exit': function exit() {
 			Object.keys(identifiers).forEach(key => {
