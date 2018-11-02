@@ -3,6 +3,7 @@
  * https://astexplorer.net/#/gist/1d1efc9443a16f3d13540cf57d35db24/675cbaf4d914ac0022b1a6b353a0d70c6c659e69
  */
 let identifiers = [];
+let identifiersInJSX = [];
 let styledComponents = [];
 
 const isDisplayNameDefined = identifier => {
@@ -50,6 +51,9 @@ module.exports.rules = {
 		VariableDeclarator(node) {
 			identifiers.push(node);
 		},
+		JSXOpeningElement(node) {
+			node.name && identifiersInJSX.push(node.name.name)
+		},
 		'Program:exit': function exit() {
 			identifiers.forEach(node => {
 				const usages = context.getDeclaredVariables(node);
@@ -58,7 +62,8 @@ module.exports.rules = {
 						ref => isDisplayNameDefined(ref.identifier)
 					)
 				);
-				if (isDisplayNameSet && usages[0] && usages[0].references.length < 3) {
+				const isComponentUsedInJSX = identifiersInJSX.some(id => id === node.id.name)
+				if (isDisplayNameSet && usages[0].references.length < 3 && !isComponentUsedInJSX) {
 					context.report({
 						node: node,
 						message: `DisplayName ${node.id.name} is defined but variable not used`,
@@ -69,6 +74,7 @@ module.exports.rules = {
 				}
 			});
 			identifiers = [];
+			identifiersInJSX = [];
 		}
 	}),
 	'styled-component-display-name-not-set': context => ({
