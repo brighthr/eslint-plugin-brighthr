@@ -127,7 +127,7 @@ module.exports.rules = {
 								node,
 								`\n${node.id.name}.displayName = '${
 									node.id.name
-								};'`
+								}';`
 							);
 						}
 					});
