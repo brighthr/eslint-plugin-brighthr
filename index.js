@@ -3,6 +3,7 @@
  * https://astexplorer.net/#/gist/1d1efc9443a16f3d13540cf57d35db24/675cbaf4d914ac0022b1a6b353a0d70c6c659e69
  */
 let identifiers = {};
+let styledComponents = [];
 
 const componentUsed = name => {
 	if (!identifiers[name]) {
@@ -123,6 +124,72 @@ module.exports.rules = {
 				}
 			});
 			identifiers = {};
+		}
+	}),
+	'styled-component-display-name-not-set': context => ({
+		VariableDeclarator(node) {
+			if (
+				node.init &&
+				node.init.type === 'TaggedTemplateExpression' &&
+				node.init.tag
+			) {
+				if (
+					node.init.tag.type === 'CallExpression' &&
+					node.init.tag.callee.name === 'styled'
+				) {
+					// match const x = styled(MyComponent)`color: black`;
+					styledComponents.push(node);
+				} else if (
+					node.init.tag.type === 'MemberExpression' &&
+					node.init.tag.object.type === 'Identifier' &&
+					node.init.tag.object.name === 'styled'
+				) {
+					// match const x = styled.div`color: black`;
+					styledComponents.push(node);
+				}
+			}
+		},
+		'Program:exit': function exit() {
+			styledComponents.forEach(node => {
+				const usages = context.getDeclaredVariables(node);
+				const isDisplayNameDefined = usages.some(usage =>
+					usage.references.find(
+						ref =>
+							ref.identifier.type === 'Identifier' &&
+							ref.identifier.parent &&
+							ref.identifier.parent.type === 'MemberExpression' &&
+							ref.identifier.parent.parent &&
+							ref.identifier.parent.parent.type ===
+								'AssignmentExpression' &&
+							ref.identifier.parent.parent.operator === '=' &&
+							ref.identifier.parent.property.type ===
+								'Identifier' &&
+							ref.identifier.parent.property.name ===
+								'displayName'
+					)
+				);
+
+				if (!isDisplayNameDefined) {
+					context.report({
+						node,
+						message: `DisplayName for styled component ${
+							node.id.name
+						} is not defined`,
+						data: {
+							component: node.id.name
+						},
+						fix(fixer) {
+							return fixer.insertTextAfter(
+								node,
+								`\n${node.id.name}.displayName = '${
+									node.id.name
+								};'`
+							);
+						}
+					});
+				}
+			});
+			styledComponents = [];
 		}
 	})
 };
