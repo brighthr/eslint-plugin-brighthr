@@ -2,40 +2,21 @@
  * Test Workbench
  * https://astexplorer.net/#/gist/1d1efc9443a16f3d13540cf57d35db24/675cbaf4d914ac0022b1a6b353a0d70c6c659e69
  */
-let identifiers = {};
+let identifiers = [];
 let styledComponents = [];
 
-const componentUsed = name => {
-	if (!identifiers[name]) {
-		identifiers[name] = {};
-	}
-	// eslint-disable-next-line no-prototype-builtins
-	if (identifiers.hasOwnProperty(name)) {
-		identifiers[name].used = true;
-	}
-};
-
-function flatten(arr) {
-	return Array.prototype.concat(...arr);
-}
-
-const traverseHOC = (node) => {
-	let args = [];
-	let callees = [];
-
-	if (node.arguments) {
-		args = flatten(node.arguments.map(arg => traverseHOC(arg)));
-	}
-
-	if (node.callee) {
-		callees = flatten(traverseHOC(node.callee))
-	}
-
-	if (node.name) {
-		return args.concat(callees, [node.name])
-	}
-
-	return args.concat(callees)
+const isDisplayNameDefined = identifier => {
+	return identifier.type === 'Identifier' &&
+		identifier.parent &&
+		identifier.parent.type === 'MemberExpression' &&
+		identifier.parent.parent &&
+		identifier.parent.parent.type ===
+		'AssignmentExpression' &&
+		identifier.parent.parent.operator === '=' &&
+		identifier.parent.property.type ===
+		'Identifier' &&
+		identifier.parent.property.name ===
+		'displayName'
 }
 
 module.exports.rules = {
@@ -67,63 +48,27 @@ module.exports.rules = {
 	}),
 	'display-name-unused': context => ({
 		VariableDeclarator(node) {
-			identifiers[node.id.name] = {
-				node
-			};
-		},
-		Identifier(node) {
-			if (
-				node.parent.object &&
-				node.parent.object.type === 'Identifier' &&
-				node.name === 'displayName'
-			) {
-				const { name } = node.parent.object;
-				// eslint-disable-next-line no-prototype-builtins
-				if (identifiers.hasOwnProperty(name)) {
-					identifiers[name].displayNameSet = true;
-				}
-			}
-			if (node.parent && node.parent.type === 'ImportSpecifier') {
-				identifiers[node.name] = {
-					node
-				};
-			}
-
-			if (node.parent && node.parent.type === 'ReturnStatement') {
-				componentUsed(node.name);
-			}
-		},
-		JSXOpeningElement(node) {
-			componentUsed(node.name.name);
-		},
-		ExportNamedDeclaration(node) {
-			node.specifiers.forEach(function (specifier) {
-				componentUsed(specifier.local.name);
-			});
-		},
-		ExportDefaultDeclaration(node) {
-			if (node.declaration.name) {
-				componentUsed(node.declaration.name);
-			} else if (node.declaration.type === 'CallExpression') {
-				// HOC style callback e:g: inject('store')(observer(Component))
-				traverseHOC(node.declaration).forEach(function (name) {
-					componentUsed(name);
-				});
-			}
+			identifiers.push(node);
 		},
 		'Program:exit': function exit() {
-			Object.keys(identifiers).forEach(key => {
-				if (identifiers[key].displayNameSet && !identifiers[key].used) {
+			identifiers.forEach(node => {
+				const usages = context.getDeclaredVariables(node);
+				const isDisplayNameSet = usages.some(usage =>
+					usage.references.find(
+						ref => isDisplayNameDefined(ref.identifier)
+					)
+				);
+				if (isDisplayNameSet && usages[0] && usages[0].references.length < 3) {
 					context.report({
-						node: identifiers[key].node,
-						message: `DisplayName ${key} is defined but variable not used`,
+						node: node,
+						message: `DisplayName ${node.id.name} is defined but variable not used`,
 						data: {
-							component: key
+							component: node.id.name
 						}
 					});
 				}
 			});
-			identifiers = {};
+			identifiers = [];
 		}
 	}),
 	'styled-component-display-name-not-set': context => ({
@@ -137,14 +82,18 @@ module.exports.rules = {
 					node.init.tag.type === 'CallExpression' &&
 					node.init.tag.callee.name === 'styled'
 				) {
-					// match const x = styled(MyComponent)`color: black`;
+					/* Matches styled component declaration of type:
+					  const x = styled(MyComponent)`color: black`;
+					*/
 					styledComponents.push(node);
 				} else if (
 					node.init.tag.type === 'MemberExpression' &&
 					node.init.tag.object.type === 'Identifier' &&
 					node.init.tag.object.name === 'styled'
 				) {
-					// match const x = styled.div`color: black`;
+					/* Matches styled component declaration of type:
+					  const x = styled.div`color: black`;
+					*/
 					styledComponents.push(node);
 				}
 			}
@@ -152,24 +101,13 @@ module.exports.rules = {
 		'Program:exit': function exit() {
 			styledComponents.forEach(node => {
 				const usages = context.getDeclaredVariables(node);
-				const isDisplayNameDefined = usages.some(usage =>
+				const isDisplayNameSet = usages.some(usage =>
 					usage.references.find(
-						ref =>
-							ref.identifier.type === 'Identifier' &&
-							ref.identifier.parent &&
-							ref.identifier.parent.type === 'MemberExpression' &&
-							ref.identifier.parent.parent &&
-							ref.identifier.parent.parent.type ===
-								'AssignmentExpression' &&
-							ref.identifier.parent.parent.operator === '=' &&
-							ref.identifier.parent.property.type ===
-								'Identifier' &&
-							ref.identifier.parent.property.name ===
-								'displayName'
+						ref => isDisplayNameDefined(ref.identifier)
 					)
 				);
 
-				if (!isDisplayNameDefined) {
+				if (!isDisplayNameSet) {
 					context.report({
 						node,
 						message: `DisplayName for styled component ${
