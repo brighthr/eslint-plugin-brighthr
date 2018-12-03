@@ -5,7 +5,8 @@
   "main": "index.js",
   "license": "MIT",
   "scripts": {
-    "audit": "node audit.js"
+    "audit": "node audit.js",
+    "semantic-release": "semantic-release"
   },
   "devDependencies": {
     "eslint": "^4.19.1",
