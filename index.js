@@ -6,19 +6,15 @@ let identifiers = [];
 let identifiersInJSX = [];
 let styledComponents = [];
 
-const isDisplayNameDefined = identifier => {
-	return identifier.type === 'Identifier' &&
-		identifier.parent &&
-		identifier.parent.type === 'MemberExpression' &&
-		identifier.parent.parent &&
-		identifier.parent.parent.type ===
-		'AssignmentExpression' &&
-		identifier.parent.parent.operator === '=' &&
-		identifier.parent.property.type ===
-		'Identifier' &&
-		identifier.parent.property.name ===
-		'displayName'
-}
+const isDisplayNameDefined = identifier =>
+	identifier.type === 'Identifier' &&
+	identifier.parent &&
+	identifier.parent.type === 'MemberExpression' &&
+	identifier.parent.parent &&
+	identifier.parent.parent.type === 'AssignmentExpression' &&
+	identifier.parent.parent.operator === '=' &&
+	identifier.parent.property.type === 'Identifier' &&
+	identifier.parent.property.name === 'displayName';
 
 module.exports.rules = {
 	'no-moment': context => ({
@@ -47,26 +43,59 @@ module.exports.rules = {
 			}
 		}
 	}),
+	'use-prebuilt-bright-components': context => ({
+		ImportDeclaration(node) {
+			if (
+				node.source.value &&
+				node.source.value.startsWith('bright-components/src')
+			) {
+				const sourceCode = context.getSourceCode();
+				const rawImportLine = sourceCode.getText(node);
+				context.report({
+					node,
+					message:
+						'Import from precompiled bright-components/dist instead',
+					fix(fixer) {
+						return fixer.replaceText(
+							node,
+							rawImportLine.replace(
+								'bright-components/src',
+								'bright-components/dist'
+							)
+						);
+					}
+				});
+			}
+		}
+	}),
 	'display-name-unused': context => ({
 		VariableDeclarator(node) {
 			identifiers.push(node);
 		},
 		JSXOpeningElement(node) {
-			node.name && identifiersInJSX.push(node.name.name)
+			node.name && identifiersInJSX.push(node.name.name);
 		},
 		'Program:exit': function exit() {
 			identifiers.forEach(node => {
 				const usages = context.getDeclaredVariables(node);
 				const isDisplayNameSet = usages.some(usage =>
-					usage.references.find(
-						ref => isDisplayNameDefined(ref.identifier)
+					usage.references.find(ref =>
+						isDisplayNameDefined(ref.identifier)
 					)
 				);
-				const isComponentUsedInJSX = identifiersInJSX.some(id => id === node.id.name)
-				if (isDisplayNameSet && usages[0].references.length < 3 && !isComponentUsedInJSX) {
+				const isComponentUsedInJSX = identifiersInJSX.some(
+					id => id === node.id.name
+				);
+				if (
+					isDisplayNameSet &&
+					usages[0].references.length < 3 &&
+					!isComponentUsedInJSX
+				) {
 					context.report({
-						node: node,
-						message: `DisplayName ${node.id.name} is defined but variable not used`,
+						node,
+						message: `DisplayName ${
+							node.id.name
+						} is defined but variable not used`,
 						data: {
 							component: node.id.name
 						}
@@ -108,8 +137,8 @@ module.exports.rules = {
 			styledComponents.forEach(node => {
 				const usages = context.getDeclaredVariables(node);
 				const isDisplayNameSet = usages.some(usage =>
-					usage.references.find(
-						ref => isDisplayNameDefined(ref.identifier)
+					usage.references.find(ref =>
+						isDisplayNameDefined(ref.identifier)
 					)
 				);
 
